@@ -1,5 +1,4 @@
 /******************************************************************************
-* @file float_scanf.s
 * @brief example of obtaining a floating point value using scanf
 *
 * Obtains a floating point value using scanf. The single precision number is
