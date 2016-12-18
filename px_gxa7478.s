@@ -1,11 +1,6 @@
 /******************************************************************************
-* @brief example of obtaining a floating point value using scanf
-*
-* Obtains a floating point value using scanf. The single precision number is
-* stored in memory by scanf and then returned in R0. R0 is then moved to S0,
-* where it is converted to double precision in D1. D1 is then split into R1 and
-* R2 for compatability with printf.
-*
+* @ a simple calculator using floating point values using scanf and printf
+* Some code is modified originally from
 * @author Christopher D. McMurrough
 ******************************************************************************/
  
@@ -14,28 +9,22 @@
    
 main:
 
-    MOV R1, #1
-    VMOV S1, R1
-    VCVT.F32.U32 S1, S1
-    B _main
+    MOV R1, #1              @stores number 1 in register
+    VMOV S1, R1             @moves 1 to float point register
+    VCVT.F32.U32 S1, S1     @converts unsigned bit representation to single float
+    B _main                 @branches into the loop main
 
 _main:
 
-    BL  _scanf              @ branch to scanf procedure with return
-    VMOV S0, R0             @ move return value R0 to FPU register S0
-
-    VCVT.F32.U32 S0, S0 	
-
-    BL _getchar
-    MOV R5, R0
-    BL _compare
-
-    BL  _printf             @ branch to print procedure with return
-    B   _main
+    BL  _scanf              @branch to scanf procedure with return
+    VMOV S0, R0             @move return value R0 to FPU register S0
+    BL _getchar             @gets comparsion operator desired
+    MOV R5, R0              @stores char character to R5
+    B _compare              @branches off to compare
  
 _getchar:
 
-    PUSH {LR}
+    PUSH {LR}               @store the return address
     MOV R7, #3              @ write syscall, 3
     MOV R0, #0              @ input stream from monitor, 0
     MOV R2, #1              @ read a single character
@@ -43,58 +32,84 @@ _getchar:
     SWI 0                   @ execute the system call
     LDR R0, [R1]            @ move the character to the return register
     AND R0, #0xFF           @ mask out all but the lowest 8 bits
-    POP {PC}
+    POP {PC}                @restore stack pointer and return
 
 _compare:
-
-    PUSH {LR}
-    CMP R5, #'a'            @compares character to operation code char '+'
+      
+    CMP R5, #'a'            @compares character to operation code char 'a'
     BEQ _abs                @ branches to function to execute and return 
-    CMP R5, #'s'            @compares character to operation code char '-'
+    CMP R5, #'s'            @compares character to operation code char 's'
     BEQ _sqroot		    @ branches to function to execute and return 
-    CMP R5, #'p'            @compares character to operation code char '*'
+    CMP R5, #'p'            @compares character to operation code char 'p'
     BEQ _pow                @ branches to function to execute and return 
-    CMP R5, #'i'            @compares character to operation code char 'M'
-    BEQ _inverse    	    @ branches to function to execute and return              
-    POP {PC}
+    CMP R5, #'i'            @compares character to operation code char 'i'
+    BEQ _inverse    	    @ branches to function to execute and return   
 
 _abs:
-
-    PUSH {LR}
-    VABS.F32 S2,S0
-    VCVT.F64.F32 D4,S2 
-    VMOV R1, R2, D4
-    POP {PC}
-
+ 
+    VABS.F32 S2,S0          @this operation gets ABS value of float input and stores in S2
+    VCVT.F64.F32 D4,S2      @double precision
+    VMOV R1, R2, D4         @split double VFP register into two ARM registers       
+    BL  _printf             @branch to print and returns
+    B main                  @loops back to main and restarts
+   
 _sqroot:
 
-    PUSH {LR}
-    VSQRT.F32 S2,S0
-    VCVT.F64.F32 D4,S2
-    VMOV R1, R2, D4
-    POP {PC}
+    VSQRT.F32 S2,S0         @this operation square roots the float input and stores in S2
+    VCVT.F64.F32 D4,S2      @double precision
+    VMOV R1, R2, D4         @split double VFP register into two ARM registers       
+    BL  _printf             @branch to print and returns
+    B main                  @loops back to main and restarts
 
 _pow:
-  
-    PUSH {LR}
-    BL  _scanf_int 
-    MOV R4, R0
-    POP {PC}
+
+    BL  _scanf_int          @scanf integer input 
+    MOV R9, R0              @store integer to R9
+    VMOV S2, S0             @move float input to float register that processes operations
+    MOV R6, #1              @start loop interation at 1
+    MOV R3, #0              @move 0 to R3
+    CMP R9, R3              @compare if power input is 0
+    BEQ _one                @if so get ready to print 1
+    B _loop                 @otherwise began loop iteration
+
+_loop:
+    
+    CMP R9, R6              @if iteration equals input
+    BEQ _endloop            @end this loop and get ready to print
+    VMUL.F32 S2, S2, S0     @multiplies the floats and stores in float register S2
+    ADD R6, R6, #1          @adds to iteration
+    B _loop                 @execute loop again
+   
+_endloop: 
+ 
+    VCVT.F64.F32 D4, S2     @converts to double precision
+    VMOV R1, R2, D4         @split double VFP register into two ARM registers
+    BL  _printf             @branch to print and returns
+    B main                  @loops back to main and restarts
+
+    
+_one:
+    VMOV S2, R6             @moves 1 to float point register
+    VCVT.F32.U32 S2, S2     @converts unsigned bit representation to single float
+    VCVT.F64.F32 D4, S2     @converts to double precision
+    VMOV R1, R2, D4         @split double VFP register into two ARM registers
+    BL _printf              @branch to print and returns
+    B main                  @loops back to main and restarts
 
 _inverse:
 
-    PUSH {LR}  
-    VDIV.F32 S2, S1, S0
-    VCVT.F64.F32 D4, S2 
-    VMOV R1, R2, D4 
-    POP {PC}
-       
+    VDIV.F32 S2, S1, S0     @divides the floats and stores in float register S2
+    VCVT.F64.F32 D4, S2     @converts to double precision
+    VMOV R1, R2, D4         @split double VFP register into two ARM registers
+    BL  _printf             @branch to print and returns
+    B main                  @loops back to main and restarts
+    
 _printf:
 
-    PUSH {LR}               @ push LR to stack
+    PUSH {LR}               @store the return address
     LDR R0, =printf_str     @ R0 contains formatted string address
     BL printf               @ call printf
-    POP {PC}                @ pop LR from stack and return
+    POP {PC}                @restore stack pointer and return
     
 _scanf:
 
@@ -118,11 +133,9 @@ _scanf_int:
     ADD SP, SP, #4          @ restore the stack pointer
     POP {PC}                @ return
 
-
 .data
 
 read_char:      .ascii      " "
 format_str:     .asciz      "%f"
 format_int:     .asciz      "%d"
 printf_str:     .asciz      "%f\n"
-
